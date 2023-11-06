@@ -24,6 +24,7 @@ class RobotLimpieza(Agent):
         self.sig_pos = None
         self.movimientos = 0
         self.carga = 100
+        self.last_pos = []
 
     def limpiar_una_celda(self, lista_de_celdas_sucias):
         celda_a_limpiar = self.random.choice(lista_de_celdas_sucias)
@@ -31,7 +32,12 @@ class RobotLimpieza(Agent):
         self.sig_pos = celda_a_limpiar.pos
 
     def seleccionar_nueva_pos(self, lista_de_vecinos):
-        self.sig_pos = self.random.choice(lista_de_vecinos).pos
+        #self.sig_pos = self.random.choice(lista_de_vecinos).pos
+        new_pos = self.random.choice(lista_de_vecinos).pos
+        while new_pos in self.last_pos:
+            new_pos = self.random.choice(lista_de_vecinos).pos
+        self.last_pos.append(new_pos)
+        self.sig_pos = new_pos
 
     @staticmethod
     def buscar_celdas_sucia(lista_de_vecinos):
@@ -50,7 +56,7 @@ class RobotLimpieza(Agent):
             self.pos, moore=True, include_center=False)
 
         for vecino in vecinos:
-            if isinstance(vecino, (Mueble, RobotLimpieza)):
+            if isinstance(vecino, RobotLimpieza) or isinstance(vecino, Mueble):
                 vecinos.remove(vecino)
 
         celdas_sucias = self.buscar_celdas_sucia(vecinos)
