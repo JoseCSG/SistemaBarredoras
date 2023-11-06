@@ -52,6 +52,7 @@ class RobotLimpieza(Agent):
         while new_pos in self.last_pos:
             new_pos = self.random.choice(lista_de_vecinos).pos
         self.last_pos.append(new_pos)
+        self.last_pos.pop(0) if len(self.last_pos) > 5 else None
         self.sig_pos = new_pos
 
     @staticmethod
@@ -71,7 +72,7 @@ class RobotLimpieza(Agent):
             self.pos, moore=True, include_center=False)
 
         for vecino in vecinos:
-            if isinstance(vecino, RobotLimpieza) or isinstance(vecino, Mueble):
+            if isinstance(vecino, RobotLimpieza) or isinstance(vecino, Mueble) or isinstance(vecino, Cargador):
                 vecinos.remove(vecino)
 
         celdas_sucias = self.buscar_celdas_sucia(vecinos)
