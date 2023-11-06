@@ -18,6 +18,21 @@ class Mueble(Agent):
         super().__init__(unique_id, model)
 
 
+class Cargador(Agent):
+    def __init__(self, unique_id, model):
+        super().__init__(unique_id, model)
+
+    def cargar_robot(self, robot):
+        if (self.pos == robot.pos):
+            # Add 25% each step
+            robot.carga += 25
+
+    def step(self):
+        for agent in self.model.schedule.agents:
+            if isinstance(agent, RobotLimpieza):
+                self.cargar_robot(agent)
+
+
 class RobotLimpieza(Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
@@ -32,12 +47,7 @@ class RobotLimpieza(Agent):
         self.sig_pos = celda_a_limpiar.pos
 
     def seleccionar_nueva_pos(self, lista_de_vecinos):
-        #self.sig_pos = self.random.choice(lista_de_vecinos).pos
-        new_pos = self.random.choice(lista_de_vecinos).pos
-        while new_pos in self.last_pos:
-            new_pos = self.random.choice(lista_de_vecinos).pos
-        self.last_pos.append(new_pos)
-        self.sig_pos = new_pos
+        self.sig_pos = self.random.choice(lista_de_vecinos).pos
 
     @staticmethod
     def buscar_celdas_sucia(lista_de_vecinos):
@@ -92,6 +102,12 @@ class Habitacion(Model):
 
         posiciones_disponibles = [pos for _, pos in self.grid.coord_iter()]
 
+        cargador1 = Cargador(1, self)
+        self.grid.place_agent(cargador1, (0, 0))
+        posiciones_disponibles.remove(
+            (0,0)
+        )
+
         # Posicionamiento de muebles
         num_muebles = int(M * N * porc_muebles)
         posiciones_muebles = self.random.sample(posiciones_disponibles, k=num_muebles)
@@ -126,6 +142,7 @@ class Habitacion(Model):
             model_reporters={"Grid": get_grid, "Cargas": get_cargas,
                              "CeldasSucias": get_sucias},
         )
+
 
     def step(self):
         self.datacollector.collect(self)
