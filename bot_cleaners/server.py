@@ -9,8 +9,8 @@ MAX_NUMBER_ROBOTS = 20
 
 def agent_portrayal(agent):
     if isinstance(agent, RobotLimpieza):
-        return {"Shape": "circle", "Filled": "false", "Color": "black", "Layer": 1, "r": 1.0,
-                "text": f"{agent.carga}", "text_color": "yellow"}
+        return {"Shape": "circle", "Filled": "false", "Color": "white", "Layer": f" Carga {agent.carga}", "r": 1.0,
+                "text": "🤖", "text_color": "yellow"}
     elif isinstance(agent, Mueble):
         return {"Shape": "rect", "Filled": "true", "Color": "white", "Layer": 0,
                 "w": 0.9, "h": 0.9, "text_color": "Black", "text": "🪑"}
@@ -73,5 +73,5 @@ model_params = {
 
 server = mesa.visualization.ModularServer(
     Habitacion, [grid, chart_celdas],
-    "botCleaner", model_params, 8521
+    "botCleaner", model_params, 3200
 )
