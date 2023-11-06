@@ -18,6 +18,21 @@ class Mueble(Agent):
         super().__init__(unique_id, model)
 
 
+class Cargador(Agent):
+    def __init__(self, unique_id, model):
+        super().__init__(unique_id, model)
+
+    def cargar_robot(self, robot):
+        if (self.pos == robot.pos):
+            # Add 25% each step
+            robot.carga += 25
+
+    def step(self):
+        for agent in self.model.schedule.agents:
+            if isinstance(agent, RobotLimpieza):
+                self.cargar_robot(agent)
+
+
 class RobotLimpieza(Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
