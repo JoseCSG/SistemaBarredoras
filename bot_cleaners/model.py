@@ -101,6 +101,10 @@ class Habitacion(Model):
 
         posiciones_disponibles = [pos for _, pos in self.grid.coord_iter()]
 
+        cargador1 = Cargador(1, self)
+        self.grid.place_agent(cargador1, (0, 0))
+        posiciones_disponibles.remove(pos)
+
         # Posicionamiento de muebles
         num_muebles = int(M * N * porc_muebles)
         posiciones_muebles = self.random.sample(posiciones_disponibles, k=num_muebles)
@@ -135,6 +139,7 @@ class Habitacion(Model):
             model_reporters={"Grid": get_grid, "Cargas": get_cargas,
                              "CeldasSucias": get_sucias},
         )
+
 
     def step(self):
         self.datacollector.collect(self)
