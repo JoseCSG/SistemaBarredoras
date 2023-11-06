@@ -103,7 +103,19 @@ class Habitacion(Model):
 
         cargador1 = Cargador(1, self)
         self.grid.place_agent(cargador1, (0, 0))
-        posiciones_disponibles.remove(pos)
+        posiciones_disponibles.remove(cargador1.pos)
+
+        cargador2 = Cargador(2, self)
+        self.grid.place_agent(cargador2, (M - 1, N - 1))
+        posiciones_disponibles.remove(cargador2.pos)
+
+        cargador3 = Cargador(3, self)
+        self.grid.place_agent(cargador3, (M - 1, 0))
+        posiciones_disponibles.remove(cargador3.pos)
+
+        cargador4 = Cargador(4, self)
+        self.grid.place_agent(cargador4, (0, N - 1))
+        posiciones_disponibles.remove(cargador4.pos)
 
         # Posicionamiento de muebles
         num_muebles = int(M * N * porc_muebles)
