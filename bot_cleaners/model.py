@@ -36,6 +36,7 @@ class RobotLimpieza(Agent):
         self.movimientos = 0
         self.carga = 100
         self.estado = "limpiando"
+        self.last_pos = []
 
     def limpiar_una_celda(self, lista_de_celdas_sucias):
         celda_a_limpiar = self.random.choice(lista_de_celdas_sucias)
@@ -44,18 +45,30 @@ class RobotLimpieza(Agent):
 
     def seleccionar_nueva_pos(self, lista_de_vecinos):
         self.sig_pos = self.random.choice(lista_de_vecinos).pos
+        # new_pos = self.random.choice(lista_de_vecinos).pos
+        # while new_pos in self.last_pos:
+        #     new_pos = self.random.choice(lista_de_vecinos).pos
+        # self.last_pos.append(new_pos)
+        # self.last_pos.pop(0) if len(self.last_pos) > 5 else None
+        # self.sig_pos = new_pos
 
     @staticmethod
     def buscar_celdas_sucia(lista_de_vecinos):
         # #Opción 1
-        # return [vecino for vecino in lista_de_vecinos
-        #                 if isinstance(vecino, Celda) and vecino.sucia]
+        return [vecino for vecino in lista_de_vecinos
+                        if isinstance(vecino, Celda) and vecino.sucia]
         # #Opción 2
-        celdas_sucias = list()
-        for vecino in lista_de_vecinos:
-            if isinstance(vecino, Celda) and vecino.sucia:
-                celdas_sucias.append(vecino)
-        return celdas_sucias
+        # celdas_sucias = list()
+        # for vecino in lista_de_vecinos:
+        #     if isinstance(vecino, Celda) and vecino.sucia:
+        #         celdas_sucias.append(vecino)
+        # return celdas_sucias
+        # celdas_sucias = list()
+        # for vecino in lista_de_vecinos:
+        #     if isinstance(vecino, RobotLimpieza) or isinstance(vecino, Mueble) or isinstance(vecino, Cargador):
+        #         celdas_sucias.append(vecino)
+        # return celdas_sucias
+            
 
     def buscar_cargador_mas_cercano(self):
         cargadores = self.model.cargadores
