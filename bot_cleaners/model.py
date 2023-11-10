@@ -5,7 +5,6 @@ from mesa.time import SimultaneousActivation
 from mesa.datacollection import DataCollector
 
 import numpy as np
-
 import math
 
 
@@ -19,20 +18,15 @@ class Mueble(Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
 
-
 class Cargador(Agent):
+    # Clase que carga un robot cuando este se posiciona sobre el
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
 
     def cargar_robot(self, robot):
-        if (self.pos == robot.pos):
-            # Add 25% each step
-            robot.carga += 25
-
-    def step(self):
-        for agent in self.model.schedule.agents:
-            if isinstance(agent, RobotLimpieza):
-                self.cargar_robot(agent)
+        if self.pos == robot.pos:
+            # Asegurarse de que la carga no exceda el 100%
+            robot.carga = min(robot.carga + 25, 100)
 
 
 class RobotLimpieza(Agent):
@@ -41,10 +35,7 @@ class RobotLimpieza(Agent):
         self.sig_pos = None
         self.movimientos = 0
         self.carga = 100
-        self.last_pos = []
-
-    def necesita_cargar(self):
-        return self.carga < 25
+        self.estado = "limpiando"
 
     def limpiar_una_celda(self, lista_de_celdas_sucias):
         celda_a_limpiar = self.random.choice(lista_de_celdas_sucias)
@@ -52,13 +43,7 @@ class RobotLimpieza(Agent):
         self.sig_pos = celda_a_limpiar.pos
 
     def seleccionar_nueva_pos(self, lista_de_vecinos):
-        # self.sig_pos = self.random.choice(lista_de_vecinos).pos
-        new_pos = self.random.choice(lista_de_vecinos).pos
-        while new_pos in self.last_pos:
-            new_pos = self.random.choice(lista_de_vecinos).pos
-        self.last_pos.append(new_pos)
-        self.last_pos.pop(0) if len(self.last_pos) > 5 else None
-        self.sig_pos = new_pos
+        self.sig_pos = self.random.choice(lista_de_vecinos).pos
 
     @staticmethod
     def buscar_celdas_sucia(lista_de_vecinos):
@@ -71,51 +56,44 @@ class RobotLimpieza(Agent):
             if isinstance(vecino, Celda) and vecino.sucia:
                 celdas_sucias.append(vecino)
         return celdas_sucias
-    
-    def distancia_entre_posiciones(self, pos1, pos2):
-        x1, y1 = pos1
-        x2, y2 = pos2
-        return math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
+
+    def buscar_cargador_mas_cercano(self):
+        cargadores = self.model.cargadores
+        distancias = [self.model.get_distance(self.pos, cargador.pos) for cargador in cargadores]
+        cargador_cercano = cargadores[distancias.index(min(distancias))]
+        return cargador_cercano
 
     def step(self):
-        vecinos = self.model.grid.get_neighbors(
-            self.pos, moore=True, include_center=False)
-
-        for vecino in vecinos:
-            if isinstance(vecino, RobotLimpieza) or isinstance(vecino, Mueble) or isinstance(vecino, Cargador):
-                vecinos.remove(vecino)
-
-        celdas_sucias = self.buscar_celdas_sucia(vecinos)
-
-        if len(celdas_sucias) == 0:
-            if self.necesita_cargar():
-                # Encuentra un cargador más cercano
-                cargadores = [vecino for vecino in vecinos if isinstance(vecino, Cargador)]
-                if cargadores:
-                    cargador_mas_cercano = min(cargadores, key=lambda c: self.distancia_entre_posiciones(self.pos, c.pos))
-                    self.sig_pos = cargador_mas_cercano.pos
-                    if (self.pos == cargador_mas_cercano.pos):
-                        self.carga = 100
-                else:
-                    self.seleccionar_nueva_pos(vecinos)
-            else:
+        if self.estado == "limpiando":
+            vecinos = self.model.grid.get_neighbors(
+                self.pos, moore=True, include_center=False)
+    
+            vecinos = [vecino for vecino in vecinos if not isinstance(vecino, (Mueble, RobotLimpieza))]
+    
+            celdas_sucias = self.buscar_celdas_sucia(vecinos)
+    
+            if len(celdas_sucias) == 0:
                 self.seleccionar_nueva_pos(vecinos)
-        else:
-            self.limpiar_una_celda(celdas_sucias)
-        
-        # vecinos = self.model.grid.get_neighbors(
-        #     self.pos, moore=True, include_center=False)
+            else:
+                self.limpiar_una_celda(celdas_sucias)
+            
+            # Comprobar si necesita recargar
+            if self.carga <= 25:
+                self.estado = "cargando"
+                cargador_cercano = self.buscar_cargador_mas_cercano()
+                self.sig_pos = cargador_cercano.pos
+        elif self.estado == "cargando":
+            # Si ya está en el cargador, no necesita moverse
+            if self.pos == self.sig_pos:
+                cargador = self.model.grid.get_cell_list_contents([self.pos])[0]
+                if isinstance(cargador, Cargador):
+                    cargador.cargar_robot(self)
+                    if self.carga >= 100:
+                        self.estado = "limpiando"
+            else:
+                # Mover hacia el cargador más cercano
+                self.seleccionar_nueva_pos([self.buscar_cargador_mas_cercano()])
 
-        # for vecino in vecinos:
-        #     if isinstance(vecino, RobotLimpieza) or isinstance(vecino, Mueble):
-        #         vecinos.remove(vecino)
-
-        # celdas_sucias = self.buscar_celdas_sucia(vecinos)
-
-        # if len(celdas_sucias) == 0:
-        #     self.seleccionar_nueva_pos(vecinos)
-        # else:
-        #     self.limpiar_una_celda(celdas_sucias)
 
     def advance(self):
         if self.pos != self.sig_pos:
@@ -134,6 +112,7 @@ class Habitacion(Model):
                  modo_pos_inicial: str = 'Fija',
                  ):
 
+        self.cargadores = []
         self.num_agentes = num_agentes
         self.porc_celdas_sucias = porc_celdas_sucias
         self.porc_muebles = porc_muebles
@@ -143,21 +122,26 @@ class Habitacion(Model):
 
         posiciones_disponibles = [pos for _, pos in self.grid.coord_iter()]
 
-        cargador1 = Cargador(1, self)
+        cargador1 = Cargador(101, self)
         self.grid.place_agent(cargador1, (0, 0))
         posiciones_disponibles.remove(cargador1.pos)
+        self.cargadores.append(cargador1)  # Añadir a la lista de cargadores
 
-        cargador2 = Cargador(2, self)
+
+        cargador2 = Cargador(102, self)
         self.grid.place_agent(cargador2, (M - 1, N - 1))
         posiciones_disponibles.remove(cargador2.pos)
+        self.cargadores.append(cargador2)
 
-        cargador3 = Cargador(3, self)
+        cargador3 = Cargador(103, self)
         self.grid.place_agent(cargador3, (M - 1, 0))
         posiciones_disponibles.remove(cargador3.pos)
+        self.cargadores.append(cargador3)
 
-        cargador4 = Cargador(4, self)
+        cargador4 = Cargador(104, self)
         self.grid.place_agent(cargador4, (0, N - 1))
         posiciones_disponibles.remove(cargador4.pos)
+        self.cargadores.append(cargador4)
 
         # Posicionamiento de muebles
         num_muebles = int(M * N * porc_muebles)
@@ -194,7 +178,6 @@ class Habitacion(Model):
                              "CeldasSucias": get_sucias},
         )
 
-
     def step(self):
         self.datacollector.collect(self)
 
@@ -206,6 +189,14 @@ class Habitacion(Model):
                 if isinstance(obj, Celda) and obj.sucia:
                     return False
         return True
+    
+    def get_distance(self, pos_1, pos_2):
+        """
+        Calcula la distancia euclidiana entre dos posiciones en la grilla.
+        """
+        x1, y1 = pos_1
+        x2, y2 = pos_2
+        return math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
 
 
 def get_grid(model: Model) -> np.ndarray:
