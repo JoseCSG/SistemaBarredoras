@@ -99,6 +99,11 @@ class RobotLimpieza(Agent):
         elif self.estado == "cargando":
             if self.path_to_charger:
                 self.sig_pos = self.path_to_charger.pop(0)
+                agent_on_charger = self.model.grid.get_cell_list_contents([self.sig_pos])[0]
+                if isinstance(agent_on_charger, RobotLimpieza):
+                    self.path_to_charger.append(self.sig_pos)
+                    self.sig_pos = self.pos
+
             else:
                 cargador = self.model.grid.get_cell_list_contents([self.pos])[0]
                 if isinstance(cargador, Cargador):
