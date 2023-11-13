@@ -4,6 +4,7 @@ from mesa.space import MultiGrid
 from mesa.time import SimultaneousActivation
 from mesa.datacollection import DataCollector
 
+import time
 import numpy as np
 import math
 
@@ -26,8 +27,10 @@ class Cargador(Agent):
     def cargar_robot(self, robot):
         if self.pos == robot.pos:
             # Asegurarse de que la carga no exceda el 100%
-            robot.carga = min(robot.carga + 25, 100)
-
+            #robot.carga  = min(robot.carga + 25, 100)
+            robot.carga = 100 if robot.carga + 25 > 100 else robot.carga + 25
+        if robot.carga == 100:
+            self.model.cargas_completas += 1
 
 class RobotLimpieza(Agent):
     def __init__(self, unique_id, model):
@@ -37,6 +40,7 @@ class RobotLimpieza(Agent):
         self.carga = 100
         self.estado = "limpiando"
         self.path_to_charger = []
+        self.past_pos = []
 
     def limpiar_una_celda(self, lista_de_celdas_sucias):
         celda_a_limpiar = self.random.choice(lista_de_celdas_sucias)
@@ -79,7 +83,7 @@ class RobotLimpieza(Agent):
     def step(self):
         if self.estado == "limpiando":
             vecinos = self.model.grid.get_neighbors(self.pos, moore=True, include_center=False)
-            vecinos = [vecino for vecino in vecinos if not isinstance(vecino, (Mueble, RobotLimpieza))]
+            vecinos = [vecino for vecino in vecinos if not isinstance(vecino, Mueble) and not isinstance(vecino, Cargador) and not isinstance(vecino, RobotLimpieza) and not vecino.pos in self.past_pos]
             celdas_sucias = self.buscar_celdas_sucia(vecinos)
 
             if len(celdas_sucias) == 0:
@@ -98,17 +102,18 @@ class RobotLimpieza(Agent):
 
         elif self.estado == "cargando":
             if self.path_to_charger:
-                self.sig_pos = self.path_to_charger.pop(0)
-                agent_on_charger = self.model.grid.get_cell_list_contents([self.sig_pos])[0]
-                if isinstance(agent_on_charger, RobotLimpieza):
-                    self.path_to_charger.append(self.sig_pos)
-                    self.sig_pos = self.pos
-
+                next_pos = self.path_to_charger[0]
+                content = self.model.grid.get_cell_list_contents(next_pos)
+                if any(isinstance(obj, RobotLimpieza) for obj in content):
+                    return
+                else:
+                    self.sig_pos = self.path_to_charger.pop(0)
             else:
                 cargador = self.model.grid.get_cell_list_contents([self.pos])[0]
                 if isinstance(cargador, Cargador):
                     cargador.cargar_robot(self)
                     if self.carga >= 100:
+                        self.path_to_charger = []
                         self.estado = "limpiando"
                         self.seleccionar_nueva_pos(self.model.grid.get_neighbors(self.pos, moore=True, include_center=False))
 
@@ -125,8 +130,10 @@ class RobotLimpieza(Agent):
                 cargador.cargar_robot(self)
                 if self.carga >= 100:
                     self.estado = "limpiando"
-
-
+            elif isinstance(cargador, Celda):
+                self.carga -= 1
+                if cargador.sucia:
+                    cargador.sucia = False  
 class Habitacion(Model):
     def __init__(self, M: int, N: int,
                  num_agentes: int = 5,
@@ -134,7 +141,8 @@ class Habitacion(Model):
                  porc_muebles: float = 0.1,
                  modo_pos_inicial: str = 'Fija',
                  ):
-
+        self.start_time = time.time()
+        self.cargas_completas = 0
         self.cargadores = []
         self.num_agentes = num_agentes
         self.porc_celdas_sucias = porc_celdas_sucias
@@ -201,17 +209,24 @@ class Habitacion(Model):
                              "CeldasSucias": get_sucias},
         )
 
-    def step(self):
-        self.datacollector.collect(self)
-
-        self.schedule.step()
 
     def todoLimpio(self):
-        for (content, x, y) in self.grid.coord_iter():
+        for (content, pos) in self.grid.coord_iter():
             for obj in content:
                 if isinstance(obj, Celda) and obj.sucia:
                     return False
         return True
+
+    def step(self):
+        self.datacollector.collect(self)
+        self.schedule.step()
+
+        if self.todoLimpio():
+            end_time = time.time()
+            self.running = False
+            print("Veces cargadores usados: ", self.cargas_completas)
+            print("Steps usados: ", self.schedule.steps)
+            print("Tiempo de ejecución: ", round(end_time - self.start_time), "segundos")
     
     def get_distance(self, pos_1, pos_2):
         """
