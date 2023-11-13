@@ -36,7 +36,7 @@ class RobotLimpieza(Agent):
         self.movimientos = 0
         self.carga = 100
         self.estado = "limpiando"
-        self.last_pos = []
+        self.path_to_charger = []
 
     def limpiar_una_celda(self, lista_de_celdas_sucias):
         celda_a_limpiar = self.random.choice(lista_de_celdas_sucias)
@@ -45,30 +45,10 @@ class RobotLimpieza(Agent):
 
     def seleccionar_nueva_pos(self, lista_de_vecinos):
         self.sig_pos = self.random.choice(lista_de_vecinos).pos
-        # new_pos = self.random.choice(lista_de_vecinos).pos
-        # while new_pos in self.last_pos:
-        #     new_pos = self.random.choice(lista_de_vecinos).pos
-        # self.last_pos.append(new_pos)
-        # self.last_pos.pop(0) if len(self.last_pos) > 5 else None
-        # self.sig_pos = new_pos
 
     @staticmethod
     def buscar_celdas_sucia(lista_de_vecinos):
-        # #Opción 1
-        return [vecino for vecino in lista_de_vecinos
-                        if isinstance(vecino, Celda) and vecino.sucia]
-        # #Opción 2
-        # celdas_sucias = list()
-        # for vecino in lista_de_vecinos:
-        #     if isinstance(vecino, Celda) and vecino.sucia:
-        #         celdas_sucias.append(vecino)
-        # return celdas_sucias
-        # celdas_sucias = list()
-        # for vecino in lista_de_vecinos:
-        #     if isinstance(vecino, RobotLimpieza) or isinstance(vecino, Mueble) or isinstance(vecino, Cargador):
-        #         celdas_sucias.append(vecino)
-        # return celdas_sucias
-            
+        return [vecino for vecino in lista_de_vecinos if isinstance(vecino, Celda) and vecino.sucia]
 
     def buscar_cargador_mas_cercano(self):
         cargadores = self.model.cargadores
@@ -76,45 +56,70 @@ class RobotLimpieza(Agent):
         cargador_cercano = cargadores[distancias.index(min(distancias))]
         return cargador_cercano
 
+    def calcular_ruta_a_cargador(self, cargador_cercano):
+        # Calculate the path to the charger
+        # This is a simple implementation and can be replaced with a pathfinding algorithm
+        path = []
+        x, y = self.pos
+        charger_x, charger_y = cargador_cercano.pos
+
+        while (x, y) != (charger_x, charger_y):
+            if x < charger_x:
+                x += 1
+            elif x > charger_x:
+                x -= 1
+            if y < charger_y:
+                y += 1
+            elif y > charger_y:
+                y -= 1
+            path.append((x, y))
+
+        self.path_to_charger = path
+
     def step(self):
         if self.estado == "limpiando":
-            vecinos = self.model.grid.get_neighbors(
-                self.pos, moore=True, include_center=False)
-    
+            vecinos = self.model.grid.get_neighbors(self.pos, moore=True, include_center=False)
             vecinos = [vecino for vecino in vecinos if not isinstance(vecino, (Mueble, RobotLimpieza))]
-    
             celdas_sucias = self.buscar_celdas_sucia(vecinos)
-    
+
             if len(celdas_sucias) == 0:
                 self.seleccionar_nueva_pos(vecinos)
             else:
                 self.limpiar_una_celda(celdas_sucias)
-            
-            # Comprobar si necesita recargar
+
             if self.carga <= 25:
                 self.estado = "cargando"
                 cargador_cercano = self.buscar_cargador_mas_cercano()
-                self.sig_pos = cargador_cercano.pos
+                self.calcular_ruta_a_cargador(cargador_cercano)
+                if self.path_to_charger:
+                    self.sig_pos = self.path_to_charger.pop(0)
+                else:
+                    self.sig_pos = self.pos
+
         elif self.estado == "cargando":
-            # Si ya está en el cargador, no necesita moverse
-            if self.pos == self.sig_pos:
+            if self.path_to_charger:
+                self.sig_pos = self.path_to_charger.pop(0)
+            else:
                 cargador = self.model.grid.get_cell_list_contents([self.pos])[0]
                 if isinstance(cargador, Cargador):
                     cargador.cargar_robot(self)
                     if self.carga >= 100:
                         self.estado = "limpiando"
-            else:
-                # Mover hacia el cargador más cercano
-                self.seleccionar_nueva_pos([self.buscar_cargador_mas_cercano()])
-
+                        self.seleccionar_nueva_pos(self.model.grid.get_neighbors(self.pos, moore=True, include_center=False))
 
     def advance(self):
         if self.pos != self.sig_pos:
             self.movimientos += 1
-
-        if self.carga > 0:
-            self.carga -= 1
             self.model.grid.move_agent(self, self.sig_pos)
+
+        if self.estado == "limpiando":
+            self.carga -= 1
+        elif self.estado == "cargando":
+            cargador = self.model.grid.get_cell_list_contents([self.pos])[0]
+            if isinstance(cargador, Cargador):
+                cargador.cargar_robot(self)
+                if self.carga >= 100:
+                    self.estado = "limpiando"
 
 
 class Habitacion(Model):
